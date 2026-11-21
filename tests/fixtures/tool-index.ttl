@@ -1,0 +1,55 @@
+@prefix tools: <https://pod-os.org/vocab/tools#> .
+@prefix ac: <https://www.w3.org/ns/ac#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix schema: <https://schema.org/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix ldp: <http://www.w3.org/ns/ldp#> .
+@prefix panes: <https://mashlib.com/ns/panes#> .
+
+<> a tools:ToolIndex ;
+    tools:registration <#umai>, <#recipe-pane>, <#meetings>, <#notes> .
+
+# An external app, exactly as in the PodOS vocabulary page.
+<#umai> a tools:AppRegistration ;
+    schema:name "Umai viewer" ;
+    ac:capability <#umai-cap> .
+<#umai-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:resourceType schema:Recipe ;
+    ac:invocation <#umai-inv> .
+<#umai-inv> a ac:UriTemplateInvocation ;
+    hydra:template "https://umai.noeldemartin.com/viewer?url={url}" ;
+    hydra:mapping [ hydra:variable "url" ; hydra:property ac:open ] .
+
+# A PodOS HTML tool, exactly as in the PodOS vocabulary page.
+<#recipe-pane> a tools:ToolRegistration ;
+    schema:name "Recipe pane" ;
+    ac:capability <#recipe-pane-cap> .
+<#recipe-pane-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:resourceType schema:Recipe ;
+    ac:invocation <#recipe-pane-inv> .
+<#recipe-pane-inv> a tools:HtmlFragmentInvocation ;
+    schema:url "https://alice.pod.example/tools/recipe.html" .
+
+# A SolidOS pane: a JavaScript module. The invocation type is the placeholder.
+<#meetings> a tools:Registration ;
+    schema:name "Meetings calendar" ;
+    ac:capability <#meetings-cap> .
+<#meetings-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:resourceType ldp:Container ;
+    ac:invocation <#meetings-inv> .
+<#meetings-inv> a panes:PaneModuleInvocation ;
+    schema:url "https://melvincarvalho.github.io/pane-loader/examples/meetings-pane.js" .
+
+# A second SolidOS pane, from another site: a reader for Markdown notes.
+<#notes> a tools:Registration ;
+    schema:name "Notes reader" ;
+    ac:capability <#notes-cap> .
+<#notes-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:resourceType <http://www.w3.org/ns/iana/media-types/text/markdown#Resource> ;
+    ac:invocation <#notes-inv> .
+<#notes-inv> a panes:PaneModuleInvocation ;
+    schema:url "https://solid-panes.github.io/notes/notes-pane.js" .

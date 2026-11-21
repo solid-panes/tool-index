@@ -1,0 +1,9 @@
+{
+  "pod": "http://127.0.0.1:8732/me/",
+  "podDir": "/path/to/the/pod/folder/on/disk",
+  "browser": "http://127.0.0.1:8732/me/public/solidos/index.html",
+  "repo": "http://127.0.0.1:8732/me/public/tool-index-repo/",
+  "user": "the test pod's user name",
+  "password": "the test pod's password",
+  "store": ""
+}

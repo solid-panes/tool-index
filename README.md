@@ -43,3 +43,24 @@ PodOS vocabulary does not yet have a kind for a JavaScript module.
 ## Licence
 
 [MIT](LICENSE), copyright Melvin Carvalho.
+
+## Tests
+
+```sh
+node tests/run.mjs
+```
+
+Run them before any change is published. They drive a real browser (Chromium) against a local test pod, logged in,
+and check the file the pod ends up with: listing, refusing a file that is not a pane, add, off, remove, apps and
+"Open with", and adding from the store, plus the layout at 400 px.
+
+They need, once:
+
+1. A local [JavaScript Solid Server](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) pod whose
+   preferences file links to `settings/tool-index.ttl`, and which serves the data browser
+   ([mashlib/dynamic](https://github.com/mashlib/dynamic)) and this folder from its public folder.
+2. `tests/local.json`, copied from `tests/local.example.json` and filled in. It is not committed.
+   Set `"store"` to a local copy of the store's `catalogue.jsonld` to try a store change before it is published;
+   leave it empty to use the public one.
+
+Each run puts the pod's index back to `tests/fixtures/tool-index.ttl` before and after.
