@@ -17,6 +17,8 @@ const HYDRA = 'http://www.w3.org/ns/hydra/core#'
 const SCHEMA = ['https://schema.org/', 'http://schema.org/']
 // The invocation type for a pane module: a placeholder until its name and home are settled.
 const PANE_MODULE = 'https://mashlib.com/ns/panes#PaneModuleInvocation'
+// The public catalogue the "Browse the store" section reads: a tool index anyone can copy from.
+const STORE = 'https://solid-panes.github.io/store/catalogue.jsonld'
 const REGISTRATION_TYPES = ['Registration', 'ToolRegistration', 'AppRegistration'].map(t => TOOLS + t)
 
 const CSS = `
@@ -48,7 +50,10 @@ const CSS = `
 .tix-empty { padding: 18px 16px; border: 1px dashed #cfd4e0; border-radius: 12px; color: #5b6272; }
 .tix-add { padding: 16px; border: 1px solid #e3e6ee; border-radius: 12px; background: #fafbfe; }
 .tix-add h3 { margin: 0 0 10px; font-size: 16px; }
-.tix-add-app { margin-top: 14px; }
+.tix-add-app, .tix-store { margin-top: 14px; }
+.tix-shop-list { margin: 14px 0 0; }
+.tix-about { color: #33405c; font-size: 14px; }
+.tix-have { font-size: 13px; font-weight: 600; color: #17693a; white-space: nowrap; }
 .tix-hint { margin: -4px 0 10px; font-size: 13px; color: #5b6272; }
 .tix-fields.tix-fields-app { grid-template-columns: 1fr 2fr 1.4fr auto; }
 .tix-fields { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: end; }
@@ -110,7 +115,10 @@ function readEntries (store, index) {
   for (const node of seen.values()) {
     let kind = 'Other'
     let address = ''
+    let forType = ''
     for (const capability of store.each(node, sym(AC + 'capability'), null, doc)) {
+      const type = store.any(capability, sym(AC + 'resourceType'), null, doc)
+      if (type) forType = type.value
       for (const invocation of store.each(capability, sym(AC + 'invocation'), null, doc)) {
         const types = store.each(invocation, sym(RDF_TYPE), null, doc).map(t => t.value)
         if (types.includes(PANE_MODULE)) { kind = 'Pane'; address = schemaValue(store, invocation, 'url', doc) }
@@ -122,7 +130,7 @@ function readEntries (store, index) {
         }
       }
     }
-    entries.push({ node, name: schemaValue(store, node, 'name', doc) || address || node.value, kind, address, on: linked.some(l => l.value === node.value) })
+    entries.push({ node, name: schemaValue(store, node, 'name', doc) || address || node.value, kind, address, forType, description: schemaValue(store, node, 'description', doc), author: schemaValue(store, node, 'author', doc), on: linked.some(l => l.value === node.value) })
   }
   return entries.sort((a, b) => (a.kind === 'Pane' ? 0 : 1) - (b.kind === 'Pane' ? 0 : 1) || a.name.localeCompare(b.name))
 }
@@ -203,8 +211,8 @@ const pane = {
 
     const root = el(dom, 'div', 'tix tool-index-pane')
     root.appendChild(el(dom, 'style', '', CSS))
-    root.appendChild(el(dom, 'h2', 'tix-title', 'Your panes'))
-    root.appendChild(el(dom, 'p', 'tix-lead', 'The panes and tools registered in your tool index. A pane that is on is loaded the next time you open the data browser and log in.'))
+    root.appendChild(el(dom, 'h2', 'tix-title', 'Your panes and apps'))
+    root.appendChild(el(dom, 'p', 'tix-lead', 'What is registered in your tool index. A pane that is on is loaded the next time you open the data browser and log in; an app is offered as an "Open with" link.'))
 
     const list = el(dom, 'ul', 'tix-list')
     root.appendChild(list)
@@ -245,6 +253,18 @@ const pane = {
     addApp.appendChild(appFields)
     root.appendChild(addApp)
 
+    // The store: a public catalogue in the same format. Read only when asked for.
+    const shop = el(dom, 'section', 'tix-add tix-store')
+    shop.appendChild(el(dom, 'h3', '', 'Browse the store'))
+    shop.appendChild(el(dom, 'p', 'tix-hint', 'A public list of panes and apps. Adding one copies its entry into your own index.'))
+    const shopButton = el(dom, 'button', '', 'Show what is in the store')
+    shopButton.type = 'button'
+    shop.appendChild(shopButton)
+    const shopList = el(dom, 'ul', 'tix-list tix-shop-list')
+    shopList.hidden = true
+    shop.appendChild(shopList)
+    root.appendChild(shop)
+
     const status = el(dom, 'p', 'tix-status')
     status.setAttribute('role', 'status')
     root.appendChild(status)
@@ -269,6 +289,7 @@ const pane = {
       }
       setBusy(false)
       draw()
+      if (catalogue && !shopList.hidden) drawStore()
     }
 
     function removeEntry (entry) {
@@ -285,6 +306,108 @@ const pane = {
       statements.push(...store.statementsMatching(null, null, entry.node, doc))
       store.remove([...new Set(statements)])
     }
+
+    // Write one entry into the store (the rdflib one), as the forms and the public store both do.
+    function writePane (name, address) {
+      const id = freshNode(store, doc, name)
+      const registration = sym(doc.uri + '#' + id)
+      const capability = sym(doc.uri + '#' + id + '-cap')
+      const invocation = sym(doc.uri + '#' + id + '-inv')
+      store.add(index, sym(RDF_TYPE), sym(TOOLS + 'ToolIndex'), doc)
+      store.add(index, sym(TOOLS + 'registration'), registration, doc)
+      store.add(registration, sym(RDF_TYPE), sym(TOOLS + 'Registration'), doc)
+      store.add(registration, sym(SCHEMA[0] + 'name'), store.literal(name), doc)
+      store.add(registration, sym(AC + 'capability'), capability, doc)
+      store.add(capability, sym(RDF_TYPE), sym(AC + 'Capability'), doc)
+      store.add(capability, sym(AC + 'action'), sym(ODRL_DISPLAY), doc)
+      store.add(capability, sym(AC + 'invocation'), invocation, doc)
+      store.add(invocation, sym(RDF_TYPE), sym(PANE_MODULE), doc)
+      store.add(invocation, sym(SCHEMA[0] + 'url'), store.literal(address), doc)
+    }
+
+    function writeApp (name, template, kind) {
+      const id = freshNode(store, doc, name)
+      const node = (suffix) => sym(doc.uri + '#' + id + suffix)
+      const [registration, capability, invocation, mapping] = [node(''), node('-cap'), node('-inv'), node('-map')]
+      store.add(index, sym(RDF_TYPE), sym(TOOLS + 'ToolIndex'), doc)
+      store.add(index, sym(TOOLS + 'registration'), registration, doc)
+      store.add(registration, sym(RDF_TYPE), sym(TOOLS + 'AppRegistration'), doc)
+      store.add(registration, sym(SCHEMA[0] + 'name'), store.literal(name), doc)
+      store.add(registration, sym(AC + 'capability'), capability, doc)
+      store.add(capability, sym(RDF_TYPE), sym(AC + 'Capability'), doc)
+      store.add(capability, sym(AC + 'action'), sym(ODRL_DISPLAY), doc)
+      if (kind) store.add(capability, sym(AC + 'resourceType'), sym(kind), doc)
+      store.add(capability, sym(AC + 'invocation'), invocation, doc)
+      store.add(invocation, sym(RDF_TYPE), sym(AC + 'UriTemplateInvocation'), doc)
+      store.add(invocation, sym(HYDRA + 'template'), store.literal(template), doc)
+      store.add(invocation, sym(HYDRA + 'mapping'), mapping, doc)
+      store.add(mapping, sym(HYDRA + 'variable'), store.literal('url'), doc)
+      store.add(mapping, sym(HYDRA + 'property'), sym(AC + 'open'), doc)
+    }
+
+    // The public store, read into a store of its own so it never mixes with the person's data.
+    let catalogue = null
+    async function readStore () {
+      const rdf = globalThis.$rdf || (globalThis.UI && globalThis.UI.rdf)
+      if (!rdf || typeof rdf.parse !== 'function') throw new Error('this page does not expose rdflib')
+      let response
+      try { response = await fetch(STORE, { headers: { Accept: 'application/ld+json' }, credentials: 'omit' }) } catch { throw new Error('the store could not be reached') }
+      if (!response.ok) throw new Error('the store answered ' + response.status)
+      const text = await response.text()
+      const graph = rdf.graph()
+      await new Promise((resolve, reject) => {
+        try { rdf.parse(text, graph, STORE, 'application/ld+json', (error) => error ? reject(error) : resolve()) } catch (error) { reject(error) }
+      })
+      return readEntries(graph, graph.sym(STORE))
+    }
+
+    function drawStore () {
+      shopList.replaceChildren()
+      shopList.hidden = false
+      const mine = new Set(readEntries(store, index).map(entry => entry.address))
+      for (const item of catalogue || []) {
+        if (item.kind !== 'Pane' && item.kind !== 'App') continue
+        const row = el(dom, 'li', 'tix-row')
+        row.dataset.address = item.address
+        const main = el(dom, 'div', 'tix-main')
+        const name = el(dom, 'div', 'tix-name', item.name)
+        name.appendChild(el(dom, 'span', 'tix-kind' + (item.kind === 'Pane' ? '' : ' tix-other'), item.kind))
+        main.appendChild(name)
+        if (item.description) main.appendChild(el(dom, 'div', 'tix-note tix-about', item.description))
+        main.appendChild(el(dom, 'div', 'tix-note', item.address + (item.author ? ' · by ' + item.author : '')))
+        row.appendChild(main)
+        const actions = el(dom, 'div', 'tix-actions')
+        if (mine.has(item.address)) {
+          actions.appendChild(el(dom, 'span', 'tix-have', 'In your index'))
+        } else {
+          const button = el(dom, 'button', 'tix-primary', 'Add')
+          button.type = 'button'
+          button.addEventListener('click', async () => {
+            await change(() => item.kind === 'Pane' ? writePane(item.name, item.address) : writeApp(item.name, item.address, item.forType), item.name + ' was added from the store.')
+            drawStore()
+          })
+          actions.appendChild(button)
+        }
+        row.appendChild(actions)
+        shopList.appendChild(row)
+      }
+      if (!shopList.childElementCount) shopList.appendChild(el(dom, 'li', 'tix-empty', 'The store is empty.'))
+    }
+
+    shopButton.addEventListener('click', async () => {
+      if (busy) return
+      shopButton.disabled = true
+      shopButton.textContent = 'Looking in the store…'
+      try {
+        catalogue = await readStore()
+        shopButton.hidden = true
+        drawStore()
+      } catch (error) {
+        shopButton.textContent = 'Show what is in the store'
+        say('The store could not be read: ' + (error && error.message ? error.message : error) + '.', 'bad')
+      }
+      shopButton.disabled = false
+    })
 
     function draw () {
       list.replaceChildren()
@@ -361,22 +484,7 @@ const pane = {
       }
       setBusy(false)
       const name = nameInput.value.trim() || nameFromAddress(url)
-      await change(() => {
-        const id = freshNode(store, doc, name)
-        const registration = sym(doc.uri + '#' + id)
-        const capability = sym(doc.uri + '#' + id + '-cap')
-        const invocation = sym(doc.uri + '#' + id + '-inv')
-        store.add(index, sym(RDF_TYPE), sym(TOOLS + 'ToolIndex'), doc)
-        store.add(index, sym(TOOLS + 'registration'), registration, doc)
-        store.add(registration, sym(RDF_TYPE), sym(TOOLS + 'Registration'), doc)
-        store.add(registration, sym(SCHEMA[0] + 'name'), store.literal(name), doc)
-        store.add(registration, sym(AC + 'capability'), capability, doc)
-        store.add(capability, sym(RDF_TYPE), sym(AC + 'Capability'), doc)
-        store.add(capability, sym(AC + 'action'), sym(ODRL_DISPLAY), doc)
-        store.add(capability, sym(AC + 'invocation'), invocation, doc)
-        store.add(invocation, sym(RDF_TYPE), sym(PANE_MODULE), doc)
-        store.add(invocation, sym(SCHEMA[0] + 'url'), store.literal(url.href), doc)
-      }, name + ' was added. It is loaded the next time the data browser loads.')
+      await change(() => writePane(name, url.href), name + ' was added. It is loaded the next time the data browser loads.')
       addressInput.value = ''
       nameInput.value = ''
     })
@@ -391,25 +499,7 @@ const pane = {
       if (!template.includes('{url}') || !paneAddress(template.split('{url}').join('x'))) return say('The link pattern must be a full https:// address with {url} in it.', 'bad')
       if (kind && !paneAddress(kind)) return say('The type must be a full address, such as https://schema.org/Recipe, or left empty.', 'bad')
       if (readEntries(store, index).some(entry => entry.address === template)) return say('That app is already in the list.', 'bad')
-      await change(() => {
-        const id = freshNode(store, doc, name)
-        const node = (suffix) => sym(doc.uri + '#' + id + suffix)
-        const [registration, capability, invocation, mapping] = [node(''), node('-cap'), node('-inv'), node('-map')]
-        store.add(index, sym(RDF_TYPE), sym(TOOLS + 'ToolIndex'), doc)
-        store.add(index, sym(TOOLS + 'registration'), registration, doc)
-        store.add(registration, sym(RDF_TYPE), sym(TOOLS + 'AppRegistration'), doc)
-        store.add(registration, sym(SCHEMA[0] + 'name'), store.literal(name), doc)
-        store.add(registration, sym(AC + 'capability'), capability, doc)
-        store.add(capability, sym(RDF_TYPE), sym(AC + 'Capability'), doc)
-        store.add(capability, sym(AC + 'action'), sym(ODRL_DISPLAY), doc)
-        if (kind) store.add(capability, sym(AC + 'resourceType'), sym(kind), doc)
-        store.add(capability, sym(AC + 'invocation'), invocation, doc)
-        store.add(invocation, sym(RDF_TYPE), sym(AC + 'UriTemplateInvocation'), doc)
-        store.add(invocation, sym(HYDRA + 'template'), store.literal(template), doc)
-        store.add(invocation, sym(HYDRA + 'mapping'), mapping, doc)
-        store.add(mapping, sym(HYDRA + 'variable'), store.literal('url'), doc)
-        store.add(mapping, sym(HYDRA + 'property'), sym(AC + 'open'), doc)
-      }, name + ' was added. It is offered the next time the data browser loads.')
+      await change(() => writeApp(name, template, kind), name + ' was added. It is offered the next time the data browser loads.')
       appNameInput.value = ''
       appTemplateInput.value = ''
       appTypeInput.value = ''
