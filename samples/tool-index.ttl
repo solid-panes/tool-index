@@ -1,0 +1,44 @@
+@prefix tools: <https://pod-os.org/vocab/tools#> .
+@prefix ac: <https://www.w3.org/ns/ac#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix schema: <https://schema.org/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix panes: <https://mashlib.com/ns/panes#> .
+
+# A sample tool index. In a pod it lives in the settings folder, private to its owner,
+# and the preferences file links to it with tools:toolIndex.
+
+<> a tools:ToolIndex ;
+    tools:registration <#notes>, <#chess>, <#umai> .
+
+<#notes> a tools:Registration ;
+    schema:name "Notes reader" ;
+    ac:capability <#notes-cap> .
+<#notes-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:invocation <#notes-inv> .
+<#notes-inv> a panes:PaneModuleInvocation ;
+    schema:url "https://solid-panes.github.io/notes/notes-pane.js" .
+
+<#chess> a tools:Registration ;
+    schema:name "Chess" ;
+    ac:capability <#chess-cap> .
+<#chess-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:invocation <#chess-inv> .
+<#chess-inv> a panes:PaneModuleInvocation ;
+    schema:url "https://solid-panes.github.io/chess/chess-pane.js" .
+
+# An external app, as in the PodOS tools vocabulary.
+<#umai> a tools:AppRegistration ;
+    schema:name "Umai viewer" ;
+    ac:capability <#umai-cap> .
+<#umai-cap> a ac:Capability ;
+    ac:action odrl:display ;
+    ac:resourceType schema:Recipe ;
+    ac:invocation <#umai-inv> .
+<#umai-inv> a ac:UriTemplateInvocation ;
+    hydra:template "https://umai.noeldemartin.com/viewer?url={url}" ;
+    hydra:mapping <#umai-map> .
+<#umai-map> hydra:variable "url" ;
+    hydra:property ac:open .
