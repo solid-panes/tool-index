@@ -351,7 +351,7 @@ const pane = {
       const rdf = globalThis.$rdf || (globalThis.UI && globalThis.UI.rdf)
       if (!rdf || typeof rdf.parse !== 'function') throw new Error('this page does not expose rdflib')
       let response
-      try { response = await fetch(STORE, { headers: { Accept: 'application/ld+json' }, credentials: 'omit' }) } catch { throw new Error('the store could not be reached') }
+      try { response = await fetch(STORE, { headers: { Accept: 'application/ld+json' }, credentials: 'omit', cache: 'no-store' }) } catch { throw new Error('the store could not be reached') }
       if (!response.ok) throw new Error('the store answered ' + response.status)
       const text = await response.text()
       const graph = rdf.graph()
